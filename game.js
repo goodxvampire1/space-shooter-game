@@ -2,10 +2,6 @@ const config = {
     type: Phaser.AUTO,
     width: 800,
     height: 600,
-    physics: {
-        default: 'arcade',
-        arcade: { debug: false }
-    },
     scene: {
         preload: preload,
         create: create,
@@ -13,97 +9,73 @@ const config = {
     }
 };
 
-let player;
-let cursors;
-let bullets;
-let enemies;
+let arrow;
+let bow;
+let target;
 let score = 0;
+let windSpeed = 0;
 let scoreText;
-let gameOverText;
-
-const game = new Phaser.Game(config);
 
 function preload() {
-    this.load.image('player', 'https://i.imgur.com/uLXtWtb.png'); // স্পেসশিপ
-    this.load.image('bullet', 'https://i.imgur.com/3X7vU53.png'); // বুলেট
-    this.load.image('enemy', 'https://i.imgur.com/CMtAQys.png'); // শত্রু
-    this.load.spritesheet('explosion', 'https://i.imgur.com/kjA7pDg.png', { frameWidth: 64, frameHeight: 64 }); // এক্সপ্লোসন অ্যানিমেশন
+    this.load.image('bow', 'assets/bow.png');
+    this.load.image('arrow', 'assets/arrow.png');
+    this.load.image('target', 'assets/target.png');
 }
 
 function create() {
-    // প্লেয়ার তৈরি
-    player = this.physics.add.sprite(400, 500, 'player').setScale(0.5);
-    player.setCollideWorldBounds(true);
+    // Add bow sprite
+    bow = this.add.sprite(100, 300, 'bow').setOrigin(0.5, 0.5);
 
-    bullets = this.physics.add.group();
-    enemies = this.physics.add.group();
+    // Add target sprite
+    target = this.add.sprite(700, Phaser.Math.Between(100, 500), 'target');
+    
+    // Create an arrow physics object
+    arrow = this.physics.add.sprite(bow.x + 50, bow.y, 'arrow');
+    arrow.setGravityY(-200);
+    arrow.setCollideWorldBounds(true);
+    arrow.setBounce(0.8);
+    
+    // Add score text
+    scoreText = this.add.text(16, 16, 'Score: 0', {
+        fontSize: '32px',
+        fill: '#000'
+    });
 
-    // কিপ্যাড কন্ট্রোল
-    cursors = this.input.keyboard.createCursorKeys();
-    this.input.keyboard.on('keydown-SPACE', shootBullet, this);
-
-    // এনেমি স্পাওন
+    // Wind effect is randomly generated every 5 seconds
     this.time.addEvent({
-        delay: 1000,
-        callback: spawnEnemy,
+        delay: 5000,
+        callback: setWindEffect,
         callbackScope: this,
         loop: true
     });
 
-    // স্কোর টেক্সট
-    scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '20px', fill: '#fff' });
+    // Detect pointer clicks to shoot arrows
+    this.input.on('pointerdown', shootArrow, this);
+}
 
-    // গেমওভার টেক্সট
-    gameOverText = this.add.text(300, 250, '', { fontSize: '40px', fill: '#fff' });
+function shootArrow(pointer) {
+    // Set the arrow's starting position and speed
+    arrow.setPosition(bow.x + 50, bow.y);
+    arrow.setVelocityX(600 + windSpeed);
+    arrow.setVelocityY(arrow.body.velocity.y - windSpeed / 2);
+}
 
-    // প্লেয়ার এবং শত্রুদের সংঘর্ষ
-    this.physics.add.collider(player, enemies, gameOver, null, this);
-
-    // বুলেট এবং এনেমির সংঘর্ষ
-    this.physics.add.collider(bullets, enemies, destroyEnemy, null, this);
+function setWindEffect() {
+    // Wind speed randomly changes between -50 and 50
+    windSpeed = Phaser.Math.Between(-50, 50);
+    console.log('Wind speed:', windSpeed);
 }
 
 function update() {
-    if (gameOverText.visible) return; // গেমওভার হলে আর কিছু আপডেট হবে না
+    // Update target's position to move randomly
+    target.y += (Math.random() - 0.5) * 2;
 
-    // প্লেয়ার মুভমেন্ট
-    if (cursors.left.isDown) {
-        player.setVelocityX(-300);
-    } else if (cursors.right.isDown) {
-        player.setVelocityX(300);
-    } else {
-        player.setVelocityX(0);
+    // Check for collision between arrow and target
+    if (Phaser.Geom.Intersects.RectangleToRectangle(arrow.getBounds(), target.getBounds())) {
+        score += 10;
+        scoreText.setText('Score: ' + score);
+        target.y = Phaser.Math.Between(100, 500); // Move the target
     }
 }
 
-function shootBullet() {
-    let bullet = bullets.create(player.x, player.y - 20, 'bullet');
-    bullet.setVelocityY(-400);
-    bullet.setCollideWorldBounds(true);
-    bullet.outOfBoundsKill = true;
-}
-
-function spawnEnemy() {
-    let xPosition = Phaser.Math.Between(50, 750);
-    let enemy = enemies.create(xPosition, 50, 'enemy');
-    enemy.setVelocityY(150);
-    enemy.setOutOfBoundsKill(true); // শত্রু স্ক্রীন থেকে বের হলে মারা যাবে
-}
-
-function destroyEnemy(bullet, enemy) {
-    bullet.destroy();
-    enemy.destroy();
-    score += 10;
-    scoreText.setText('Score: ' + score);
-}
-
-function gameOver() {
-    // গেমওভার হলে প্লেয়ারকে রেড রঙে পরিণত করুন
-    player.setTint(0xff0000);
-    player.anims.play('turn');
-    this.physics.pause();
-
-    // গেমওভার টেক্সট
-    gameOverText.setText('Game Over! Final Score: ' + score);
-    gameOverText.visible = true;
-                                                }
+const game = new Phaser.Game(config);
